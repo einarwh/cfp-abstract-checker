@@ -5,7 +5,7 @@ open System.Text
 open System.Text.Json
 
 type Session = {
-    sessionId : string 
+    id : string 
     title : string 
     description : string 
 }
@@ -41,7 +41,7 @@ let loginAsync (client : HttpClient) (email : string) (key : string) =
 
 let getFilename sandbox scanId session = 
     let prefix = if sandbox then "sandbox" else "copyleaks"
-    sprintf "%s-%s-%s.json" prefix scanId session.sessionId
+    sprintf "%s-%s-%s.json" prefix scanId session.id
 
 let checkAsync (client : HttpClient) (scanId : string) (token : string) (sandbox : bool) (text : string) =
     async {
@@ -71,16 +71,16 @@ let checkAsync (client : HttpClient) (scanId : string) (token : string) (sandbox
 let checkSession (client : HttpClient) (scanId : string) (token : string) (sandbox : bool) (session : Session) : unit = 
     let filename = getFilename sandbox scanId session 
     if File.Exists(filename) then 
-        printfn "Skipping session %s -> Found report %s." session.sessionId filename
+        printfn "Skipping session %s -> Found report %s." session.id filename
     else 
         let text = session.title + Environment.NewLine + Environment.NewLine + session.description 
         let checkResult = checkAsync client scanId token sandbox text |> Async.RunSynchronously
         match checkResult with 
         | Ok body -> 
             File.WriteAllText(filename, body)
-            printfn "Checked session %s -> Wrote report %s" session.sessionId filename
+            printfn "Checked session %s -> Wrote report %s" session.id filename
         | Error body -> 
-            printfn "!!! Failed to check session %s: %s" session.sessionId body 
+            printfn "!!! Failed to check session %s: %s" session.id body 
 
 let checkSessions (client : HttpClient) (scanId : string) (token : string) (sandbox : bool) (sessions : Session list) = 
     sessions |> List.iter (checkSession client scanId token sandbox)
@@ -101,7 +101,7 @@ let runCheck (email : string) (scanId : string) (apikey : string) (sandbox : boo
 
 let toSessionRecord (sessionElement : JsonElement) = 
     let getString (prop : string) = sessionElement.GetProperty(prop).GetString()
-    { sessionId = getString "sessionId"
+    { id = getString "id"
       title = getString "title"
       description = getString "description" }
 
