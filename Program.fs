@@ -39,9 +39,9 @@ let loginAsync (client : HttpClient) (email : string) (key : string) =
         return result
     }   
 
-let getFilename sandbox scanId session = 
+let getFilename sandbox scanId = 
     let prefix = if sandbox then "sandbox" else "copyleaks"
-    sprintf "%s-%s-%s.json" prefix scanId session.id
+    sprintf "%s-%s.json" prefix scanId
 
 let checkAsync (client : HttpClient) (scanId : string) (token : string) (sandbox : bool) (text : string) =
     async {
@@ -68,8 +68,9 @@ let checkAsync (client : HttpClient) (scanId : string) (token : string) (sandbox
         return result
     }
 
-let checkSession (client : HttpClient) (scanId : string) (token : string) (sandbox : bool) (session : Session) : unit = 
-    let filename = getFilename sandbox scanId session 
+let checkSession (client : HttpClient) (confId : string) (token : string) (sandbox : bool) (session : Session) : unit = 
+    let scanId = sprintf "%s-%s" confId session.id
+    let filename = getFilename sandbox scanId 
     if File.Exists(filename) then 
         printfn "Skipping session %s -> Found report %s." session.id filename
     else 
@@ -80,12 +81,15 @@ let checkSession (client : HttpClient) (scanId : string) (token : string) (sandb
             File.WriteAllText(filename, body)
             printfn "Checked session %s -> Wrote report %s" session.id filename
         | Error body -> 
-            printfn "!!! Failed to check session %s: %s" session.id body 
+            printfn "!!! Failed to check session %s" session.id 
+            printfn "!!! Text length: %d" (text.Length)
+            printfn "!!! Error %s" body 
+            printfn "!!!"
 
 let checkSessions (client : HttpClient) (scanId : string) (token : string) (sandbox : bool) (sessions : Session list) = 
     sessions |> List.iter (checkSession client scanId token sandbox)
 
-let runCheck (email : string) (scanId : string) (apikey : string) (sandbox : bool) (sessions : Session list) = 
+let runCheck (email : string) (confId : string) (apikey : string) (sandbox : bool) (sessions : Session list) = 
     use httpClient = new HttpClient() 
     let loginResult = 
         loginAsync httpClient email apikey
@@ -95,7 +99,7 @@ let runCheck (email : string) (scanId : string) (apikey : string) (sandbox : boo
         printfn "Login succeeded."
         let jsonDoc = JsonDocument.Parse(body)
         let token = jsonDoc.RootElement.GetProperty("access_token").GetString()
-        sessions |> checkSessions httpClient scanId token sandbox 
+        sessions |> checkSessions httpClient confId token sandbox 
     | Error body -> 
         printfn "Login failed: %s" body 
 
@@ -119,13 +123,13 @@ let main argv =
     let inputfile = argv[0]
     let email = argv[1]
     let apikey = argv[2]
-    let scanId = argv[3]
+    let confId = argv[3]
     let sandbox = argv[4] <> "copyleaks"
     printfn "inputfile = %s" inputfile 
     printfn "email = %s" email 
     printfn "apikey = %s" apikey 
-    printfn "scanId = %s" scanId 
+    printfn "confId = %s" confId 
     printfn "sandbox = %b" sandbox
     let sessions = parseInput inputfile
-    sessions |> runCheck email scanId apikey sandbox
+    sessions |> runCheck email confId apikey sandbox
     0
